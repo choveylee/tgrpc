@@ -25,8 +25,8 @@ func (p *GrpcClient) Conn() *grpc.ClientConn {
 	return p.conn
 }
 
-func NewGrpcClient(ctx context.Context, address string, options ...grpc.DialOption) (*GrpcClient, error) {
-	options = append(options,
+func NewGrpcClient(ctx context.Context, address string, opts ...grpc.DialOption) (*GrpcClient, error) {
+	options := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
 			logClientInterceptor,
@@ -35,7 +35,9 @@ func NewGrpcClient(ctx context.Context, address string, options ...grpc.DialOpti
 		grpc.WithAuthority(address),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		// grpc.WithBlock(),
-	)
+	}
+
+	options = append(options, opts...)
 
 	conn, err := grpc.Dial(address, options...)
 	if err != nil {
