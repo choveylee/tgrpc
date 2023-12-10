@@ -37,7 +37,9 @@ func NewGrpcClient(ctx context.Context, address string, opts ...grpc.DialOption)
 		// grpc.WithBlock(),
 	}
 
-	options = append(options, opts...)
+	if opts != nil {
+		options = append(options, opts...)
+	}
 
 	conn, err := grpc.Dial(address, options...)
 	if err != nil {
