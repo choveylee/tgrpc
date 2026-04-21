@@ -7,7 +7,6 @@ import (
 
 	"github.com/choveylee/tmetric"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -21,29 +20,16 @@ func splitMethodName(fullMethod string) (string, string) {
 }
 
 func logClientInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	//ctx = log.WithLogTrace(ctx)
-
 	startTime := time.Now()
 
 	err := invoker(ctx, method, req, reply, cc, opts...)
 
 	duration := time.Since(startTime)
+	service, shortMethod := splitMethodName(method)
 
-	var service string
+	logFormatter(ctx, service, shortMethod, duration, req, reply, err)
 
-	service, method = splitMethodName(method)
-
-	logFormatter(ctx, service, method, duration, req, reply, err)
-
-	grpcClientLatency.Observe(tmetric.SinceMS(startTime), "unary", service, method, status.Code(err).String())
+	grpcClientLatency.Observe(tmetric.SinceMS(startTime), "unary", service, shortMethod, status.Code(err).String())
 
 	return err
-}
-
-func metaDataClientInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	md := metadata.MD{}
-
-	// md.Set("app-id", cfg.DefaultString(cfg.DefaultRcraiAppName, ""))
-
-	return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
 }

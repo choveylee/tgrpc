@@ -54,18 +54,15 @@ func (p *GrpcClient) Close() error {
 	return err
 }
 
-// NewGrpcClient creates a channel with [grpc.NewClient], applying OTel stats,
-// logging and metadata interceptors, and insecure credentials. Use
+// NewGrpcClient creates a channel with [grpc.NewClient], applying OTel stats, a
+// unary access-logging interceptor, and insecure credentials. Use
 // [GrpcClient.Invoke] for unary RPCs. Call [GrpcClient.Close] when done, or
 // cancel ctx to close the connection in the background (errors are logged at
 // warn level).
 func NewGrpcClient(ctx context.Context, grpcOption GrpcOption, address string) (*GrpcClient, error) {
 	options := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
-		grpc.WithChainUnaryInterceptor(
-			logClientInterceptor,
-			metaDataClientInterceptor,
-		),
+		grpc.WithUnaryInterceptor(logClientInterceptor),
 		grpc.WithAuthority(address),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}

@@ -1,6 +1,6 @@
 # tgrpc
 
-`tgrpc` is a small Go library that constructs [gRPC](https://grpc.io/) client channels with sensible defaults for observability and operations: OpenTelemetry client instrumentation, structured access logging, client-side latency metrics, and unary interceptors. It wraps [`grpc.NewClient`](https://pkg.go.dev/google.golang.org/grpc#NewClient) and exposes unary RPCs through [`ClientConn.Invoke`](https://pkg.go.dev/google.golang.org/grpc#ClientConn.Invoke).
+`tgrpc` is a small Go library that constructs [gRPC](https://grpc.io/) client channels with sensible defaults for observability and operations: OpenTelemetry client instrumentation, structured access logging, client-side latency metrics, and a unary access-logging interceptor. It wraps [`grpc.NewClient`](https://pkg.go.dev/google.golang.org/grpc#NewClient) and exposes unary RPCs through [`ClientConn.Invoke`](https://pkg.go.dev/google.golang.org/grpc#ClientConn.Invoke).
 
 ## Features
 
@@ -81,7 +81,7 @@ Ensure your process configures `tlog`, Prometheus registration for `tmetric`, an
 
 | Symbol | Role |
 |--------|------|
-| `NewGrpcClient` | Builds a `GrpcClient` with default interceptors, OTel stats, and insecure credentials unless overridden. |
+| `NewGrpcClient` | Builds a `GrpcClient` with the access-logging unary interceptor, OTel stats, and insecure credentials unless overridden. |
 | `GrpcClient.Invoke` | Sends a unary RPC (`ClientConn.Invoke`). |
 | `GrpcClient.Conn` | Returns `*grpc.ClientConn` for streaming or advanced use. |
 | `GrpcClient.Close` | Closes the channel (`error`, idempotent). |
