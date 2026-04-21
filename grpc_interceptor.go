@@ -1,11 +1,3 @@
-/**
- * @Author: lidonglin
- * @Description:
- * @File:  grpc_interceptor.go
- * @Version: 1.0.0
- * @Date: 2023/12/10 16:29
- */
-
 package tgrpc
 
 import (

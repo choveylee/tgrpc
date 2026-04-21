@@ -1,11 +1,3 @@
-/**
- * @Author: lidonglin
- * @Description:
- * @File:  log.go
- * @Version: 1.0.0
- * @Date: 2023/12/10 16:18
- */
-
 package tgrpc
 
 import (
