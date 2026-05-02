@@ -1,14 +1,14 @@
 # tgrpc
 
-`tgrpc` is a small Go library that constructs [gRPC](https://grpc.io/) client channels with sensible defaults for observability and operations: OpenTelemetry client instrumentation, structured access logging, client-side latency metrics, and a unary access-logging interceptor. It wraps [`grpc.NewClient`](https://pkg.go.dev/google.golang.org/grpc#NewClient) and exposes unary RPCs through [`ClientConn.Invoke`](https://pkg.go.dev/google.golang.org/grpc#ClientConn.Invoke).
+`tgrpc` is a small Go library for constructing [gRPC](https://grpc.io/) client channels with production-oriented defaults for observability and operational safety: OpenTelemetry client instrumentation, structured access logging, client-side latency metrics, and a unary access-log interceptor. It wraps [`grpc.NewClient`](https://pkg.go.dev/google.golang.org/grpc#NewClient) and exposes unary RPCs through [`ClientConn.Invoke`](https://pkg.go.dev/google.golang.org/grpc#ClientConn.Invoke).
 
 ## Features
 
-- **Modern client API** — Uses `grpc.NewClient` and `GrpcClient.Invoke` for unary calls; streaming APIs remain available via `GrpcClient.Conn`.
+- **Modern client API** — Uses `grpc.NewClient` and `GrpcClient.Invoke` for unary calls; streaming APIs remain available through `GrpcClient.Conn`.
 - **OpenTelemetry** — Registers the gRPC client stats handler from [`otelgrpc`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc).
-- **Access logging** — Unary interceptor emits request metadata, latency, status, and JSON-marshaled protobuf payloads through [`tlog`](https://github.com/choveylee/tlog).
+- **Access logging** — The unary interceptor emits request metadata, latency, status, and protobuf payloads through [`tlog`](https://github.com/choveylee/tlog).
 - **Metrics** — Histogram `grpc_client_latency` (milliseconds) with labels `type`, `service`, `method`, and `code`, via [`tmetric`](https://github.com/choveylee/tmetric) / Prometheus.
-- **Lifecycle** — Idempotent `Close`; optional automatic shutdown when the constructor `context` is canceled (close errors are logged at warn level).
+- **Lifecycle** — Provides idempotent `Close`; optionally shuts down the connection automatically when the constructor `context` is canceled (close failures are logged at warn level).
 
 ## Requirements
 
@@ -55,18 +55,18 @@ func main() {
 
 Substitute `MyRequest`, `MyResponse`, and `/package.Service/Method` with types and the method string from your `.proto` generated code.
 
-**Transport security:** `NewGrpcClient` uses **insecure** credentials by default. For TLS or other transports, add the corresponding `grpc.DialOption` values through `GrpcOption.WithDialOption`, consistent with [gRPC Go](https://github.com/grpc/grpc-go) documentation on credentials and channel configuration.
+**Transport security:** `NewGrpcClient` uses **insecure** credentials only when the caller does not configure transport security. For TLS or other transports, prefer `GrpcOption.WithTransportCredentials` or `GrpcOption.WithCredentialsBundle`. `GrpcOption.WithDialOption` remains available for advanced channel settings and raw gRPC dial options.
 
 ## Client options
 
-`GrpcOption` collects additional [`grpc.DialOption`](https://pkg.go.dev/google.golang.org/grpc#DialOption) values passed to `grpc.NewClient` after the library defaults. Use it for transport credentials, custom authority, keepalive, and other channel settings.
+`GrpcOption` collects additional [`grpc.DialOption`](https://pkg.go.dev/google.golang.org/grpc#DialOption) values passed to `grpc.NewClient`. Use `WithTransportCredentials` or `WithCredentialsBundle` for transport security, and `WithDialOption` for other advanced channel settings such as keepalive, authority overrides, or resolver configuration.
 
 ## Observability
 
 | Mechanism        | Description |
 |------------------|-------------|
 | Tracing / stats  | OpenTelemetry gRPC client handler (`otelgrpc`). |
-| Logs             | Per-unary-call access log via `tlog` (includes serialized request/response when inputs are `proto.Message`). |
+| Logs             | Per-unary-call access log via `tlog` (includes serialized request/response payloads when emitted and when inputs are `proto.Message`). |
 | Metrics          | `grpc_client_latency` histogram (ms); labels: `type`, `service`, `method`, `code`. |
 
 Ensure your process configures `tlog`, Prometheus registration for `tmetric`, and OpenTelemetry exporters according to your environment.
@@ -81,11 +81,11 @@ Ensure your process configures `tlog`, Prometheus registration for `tmetric`, an
 
 | Symbol | Role |
 |--------|------|
-| `NewGrpcClient` | Builds a `GrpcClient` with the access-logging unary interceptor, OTel stats, and insecure credentials unless overridden. |
+| `NewGrpcClient` | Builds a `GrpcClient` with the access-log unary interceptor, OTel stats, and default insecure credentials only when transport security is not otherwise configured. |
 | `GrpcClient.Invoke` | Sends a unary RPC (`ClientConn.Invoke`). |
 | `GrpcClient.Conn` | Returns `*grpc.ClientConn` for streaming or advanced use. |
 | `GrpcClient.Close` | Closes the channel (`error`, idempotent). |
-| `NewGrpcOption` / `GrpcOption.WithDialOption` | Extra dial options. |
+| `NewGrpcOption` / `GrpcOption.WithTransportCredentials` / `GrpcOption.WithCredentialsBundle` / `GrpcOption.WithDialOption` | Additional channel options. |
 
 ## Documentation
 

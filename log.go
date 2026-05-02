@@ -29,31 +29,38 @@ func logFormatter(ctx context.Context, service, method string, duration time.Dur
 		Detailf("latency:%v", latency).
 		Detailf("code:%s", code.String())
 
-	reqData := make([]byte, 0)
-	respData := make([]byte, 0)
+	event = event.Detailf("request:%s", newProtoJSONLogValue(ctx, "request", req)).
+		Detailf("response:%s", newProtoJSONLogValue(ctx, "response", resp))
 
-	request, ok := req.(proto.Message)
-	if ok {
-		var err error
+	event.Msg("gRPC client access log")
+}
 
-		reqData, err = protojson.Marshal(request)
-		if err != nil {
-			tlog.W(ctx).Err(err).Msgf("marshal req proto message err (%v).", err)
-		}
+type protoJSONLogValue struct {
+	ctx        context.Context
+	fieldName  string
+	protoValue proto.Message
+}
+
+func newProtoJSONLogValue(ctx context.Context, fieldName string, value interface{}) protoJSONLogValue {
+	message, _ := value.(proto.Message)
+
+	return protoJSONLogValue{
+		ctx:        ctx,
+		fieldName:  fieldName,
+		protoValue: message,
+	}
+}
+
+func (p protoJSONLogValue) String() string {
+	if p.protoValue == nil {
+		return ""
 	}
 
-	response, ok := resp.(proto.Message)
-	if ok {
-		var err error
-
-		respData, err = protojson.Marshal(response)
-		if err != nil {
-			tlog.W(ctx).Err(err).Msgf("marshal resp proto message err (%v).", err)
-		}
+	data, err := protojson.Marshal(p.protoValue)
+	if err != nil {
+		tlog.W(p.ctx).Err(err).Msgf("Failed to marshal the gRPC %s payload", p.fieldName)
+		return ""
 	}
 
-	event = event.Detailf("req:%s", string(reqData)).
-		Detailf("resp:%s", string(respData))
-
-	event.Msg("grpc access log")
+	return string(data)
 }

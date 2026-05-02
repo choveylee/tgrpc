@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/choveylee/tmetric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
@@ -29,7 +28,7 @@ func logClientInterceptor(ctx context.Context, method string, req, reply interfa
 
 	logFormatter(ctx, service, shortMethod, duration, req, reply, err)
 
-	grpcClientLatency.Observe(tmetric.SinceMS(startTime), "unary", service, shortMethod, status.Code(err).String())
+	observeGrpcClientLatency(ctx, startTime, "unary", service, shortMethod, status.Code(err).String())
 
 	return err
 }
