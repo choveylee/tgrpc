@@ -4,15 +4,15 @@
 
 ## Features
 
-- **Modern client API** — Uses `grpc.NewClient` and `GrpcClient.Invoke` for unary calls; streaming APIs remain available through `GrpcClient.Conn`.
+- **Modern client API** — `GrpcClient` implements `grpc.ClientConnInterface` for generated unary and streaming clients.
 - **OpenTelemetry** — Registers the gRPC client stats handler from [`otelgrpc`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc).
-- **Access logging** — The unary interceptor emits request metadata, latency, status, and protobuf payloads through [`tlog`](https://github.com/choveylee/tlog).
+- **Access logging** — The unary interceptor records the service, method, elapsed time, and gRPC status code through [`tlog`](https://github.com/choveylee/tlog).
 - **Metrics** — Histogram `grpc_client_latency` (milliseconds) with labels `type`, `service`, `method`, and `code`, via [`tmetric`](https://github.com/choveylee/tmetric) / Prometheus.
 - **Lifecycle** — Provides idempotent `Close`; optionally shuts down the connection automatically when the constructor `context` is canceled (close failures are logged at warn level).
 
 ## Requirements
 
-- Go **1.25** or later (see `go.mod`).
+- Go **1.27.4** or later (see `go.mod`).
 
 ## Installation
 
@@ -38,16 +38,16 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts := tgrpc.NewGrpcOption()
-	client, err := tgrpc.NewGrpcClient(ctx, *opts, "127.0.0.1:50051")
+	options := tgrpc.NewGrpcOption()
+	client, err := tgrpc.NewGrpcClient(ctx, *options, "127.0.0.1:50051")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer client.Close()
 
-	var req MyRequest
-	var resp MyResponse
-	if err := client.Invoke(ctx, "/package.Service/Method", &req, &resp); err != nil {
+	var request MyRequest
+	var response MyResponse
+	if err := client.Invoke(ctx, "/package.Service/Method", &request, &response); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -55,37 +55,41 @@ func main() {
 
 Substitute `MyRequest`, `MyResponse`, and `/package.Service/Method` with types and the method string from your `.proto` generated code.
 
-**Transport security:** `NewGrpcClient` uses **insecure** credentials only when the caller does not configure transport security. For TLS or other transports, prefer `GrpcOption.WithTransportCredentials` or `GrpcOption.WithCredentialsBundle`. `GrpcOption.WithDialOption` remains available for advanced channel settings and raw gRPC dial options.
+An empty `GrpcOption` defaults to plaintext. When adding dial options, select transport explicitly. Use `WithTransportCredentials` or `WithCredentialsBundle` for TLS, or call `WithInsecure()` for an intentional plaintext connection. For example, a plaintext client that adds a keepalive option also calls `WithInsecure()`.
 
 ## Client options
 
-`GrpcOption` collects additional [`grpc.DialOption`](https://pkg.go.dev/google.golang.org/grpc#DialOption) values passed to `grpc.NewClient`. Use `WithTransportCredentials` or `WithCredentialsBundle` for transport security, and `WithDialOption` for other advanced channel settings such as keepalive, authority overrides, or resolver configuration.
+`GrpcOption` collects additional [`grpc.DialOption`](https://pkg.go.dev/google.golang.org/grpc#DialOption) values passed to `grpc.NewClient`. Use `WithDialOption` for advanced channel settings such as keepalive, authority overrides, or resolver configuration. Copies of an option set can be extended independently.
 
 ## Observability
 
 | Mechanism        | Description |
 |------------------|-------------|
-| Tracing / stats  | OpenTelemetry gRPC client handler (`otelgrpc`). |
-| Logs             | Per-unary-call access log via `tlog` (includes serialized request/response payloads when emitted and when inputs are `proto.Message`). |
+| Tracing / stats  | OpenTelemetry gRPC client handler (`otelgrpc`) with canonical response status. |
+| Logs             | Unary service, method, duration, and status code via `tlog`. |
 | Metrics          | `grpc_client_latency` histogram (ms); labels: `type`, `service`, `method`, `code`. |
 
 Ensure your process configures `tlog`, Prometheus registration for `tmetric`, and OpenTelemetry exporters according to your environment.
+The complete gRPC error remains available to the caller.
+Malformed RPC method paths use `unknown` labels in logs, metrics, and built-in traces.
+Pass `client` to generated constructors such as `servicepb.NewServiceClient(client)` so calls completed by custom unary interceptors are also measured. When using the raw connection from `client.Conn()`, add custom unary interceptors with `grpc.WithChainUnaryInterceptor` to keep them inside the access-log and metrics interceptor.
 
 ## Lifecycle and concurrency
 
-- Call `GrpcClient.Close` when the client is no longer needed, or cancel the `context` passed to `NewGrpcClient` to close the connection in a background goroutine.
-- `Close` is safe to call multiple times; only the first call performs the shutdown.
+- `NewGrpcClient` creates a channel that connects on demand. Use a client lifetime context for construction and a per-call context for each RPC.
+- Call `GrpcClient.Close` or cancel the lifetime context to close the channel. Concurrent `Close` callers receive the same shutdown result.
 - Do not copy a non-zero `GrpcClient`; treat it as owning the underlying `*grpc.ClientConn`.
 
 ## API overview
 
 | Symbol | Role |
 |--------|------|
-| `NewGrpcClient` | Builds a `GrpcClient` with the access-log unary interceptor, OTel stats, and default insecure credentials only when transport security is not otherwise configured. |
-| `GrpcClient.Invoke` | Sends a unary RPC (`ClientConn.Invoke`). |
-| `GrpcClient.Conn` | Returns `*grpc.ClientConn` for streaming or advanced use. |
+| `NewGrpcClient` | Builds a client with a unary access-log interceptor and OpenTelemetry stats. |
+| `GrpcClient.Invoke` | Validates, sends, and observes a unary RPC. |
+| `GrpcClient.NewStream` | Opens a streaming RPC for a generated client. |
+| `GrpcClient.Conn` | Returns the raw `*grpc.ClientConn` for advanced use. |
 | `GrpcClient.Close` | Closes the channel (`error`, idempotent). |
-| `NewGrpcOption` / `GrpcOption.WithTransportCredentials` / `GrpcOption.WithCredentialsBundle` / `GrpcOption.WithDialOption` | Additional channel options. |
+| `GrpcOption` | Additional channel options, including explicit TLS credentials, a credentials bundle, or `WithInsecure()`. |
 
 ## Documentation
 
